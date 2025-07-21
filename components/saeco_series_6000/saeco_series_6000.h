@@ -23,6 +23,8 @@ class SaecoSeries6000 : public Component {
   void dump_config() override;
   void send_packet_to_mainboard(const std::vector<uint8_t> &data);
   void send_packets_to_mainboard(const std::vector<std::vector<uint8_t>> &packets, uint32_t delay_ms = 10);
+  void send_packets_to_mainboard(const std::vector<std::string>& hex_packets, uint32_t delay_ms = 10);
+  void send_packets_to_mainboard(const std::string& hex_packet, uint32_t delay_ms = 10);
 
  protected:
   uart::UARTComponent *uart_display_;
@@ -56,6 +58,7 @@ class SaecoSeries6000 : public Component {
   void pub_status(uint8_t status);
   static const uint8_t BitReverse[256];
   uint32_t calc_crc(const std::vector<uint8_t>& data, size_t start, size_t end);
+  std::vector<uint8_t> parse_hex_string_to_bytes(const std::string& hex_string);
 };
 
 class SaecoSendPacketsButton : public esphome::button::Button, public esphome::Component {

@@ -208,10 +208,8 @@ void SaecoSeries6000::dump_config() {
 
 void SaecoSeries6000::send_packet_to_mainboard(const std::vector<uint8_t> &data) {
     ESP_LOGI(TAG, "Send to Mainboard pressed.");
-    if (uart_mainboard_ != nullptr) {
-        for (auto b : data) {
-            uart_mainboard_->write_byte(b);
-        }
+    for (auto b : data) {
+        uart_mainboard_->write_byte(b);
     }
 }
 
@@ -269,22 +267,41 @@ uint32_t SaecoSeries6000::calc_crc(const std::vector<uint8_t>& data, size_t star
     return crc;
 }
 
+std::vector<uint8_t> SaecoSeries6000::parse_hex_string_to_bytes(const std::string& hex_string) {
+    std::vector<uint8_t> pkt;
+    size_t pos = 0;
+    while (pos < hex_string.size()) {
+        while (pos < hex_string.size() && isspace(hex_string[pos])) ++pos;
+        if (pos >= hex_string.size()) break;
+        char* endptr = nullptr;
+        uint8_t byte = static_cast<uint8_t>(std::strtoul(hex_string.c_str() + pos, &endptr, 16));
+        pkt.push_back(byte);
+        if (endptr == nullptr || endptr == hex_string.c_str() + pos) break;
+        pos = endptr - hex_string.c_str();
+    }
+    return pkt;
+}
+
+void SaecoSeries6000::send_packets_to_mainboard(const std::string& hex_packet, uint32_t delay_ms) {
+    std::vector<std::vector<uint8_t>> pkts = {parse_hex_string_to_bytes(hex_packet)};
+    send_packets_to_mainboard(pkts, delay_ms);
+}
+
+void SaecoSeries6000::send_packets_to_mainboard(const std::vector<std::string>& hex_packets, uint32_t delay_ms) {
+    std::vector<std::vector<uint8_t>> pkts;
+    for (const auto& s : hex_packets) {
+        pkts.push_back(parse_hex_string_to_bytes(s));
+    }
+    send_packets_to_mainboard(pkts, delay_ms);
+}
+
 void SaecoSeries6000::send_packets_to_mainboard(const std::vector<std::vector<uint8_t>> &packets, uint32_t delay_ms) {
     uint8_t counter = (last_display_counter_ + 1) & 0xFF;
     for (size_t i = 0; i < packets.size(); ++i) {
         std::vector<uint8_t> pkt = packets[i];
+        // Заменяем байт счетчика (4-й байт)
         if (pkt.size() > 4) {
             pkt[4] = counter;
-        }
-        // Логируем пакет ДО пересчёта CRC
-        {
-            std::string log_str;
-            char buf[8];
-            for (auto b : pkt) {
-                snprintf(buf, sizeof(buf), "%02X ", b);
-                log_str += buf;
-            }
-            ESP_LOGI(TAG, "Packet before CRC: %s", log_str.c_str());
         }
         // Пересчёт CRC: ищем преамбулу 0xAA 0xAA 0xAA, считаем CRC по данным между преамбулой и последними 5 байтами
         if (pkt.size() > 8) {
@@ -296,24 +313,26 @@ void SaecoSeries6000::send_packets_to_mainboard(const std::vector<std::vector<ui
             size_t crc_end = pkt.size() - 5; // не включаем 4 CRC и 0x55
             uint32_t crc = calc_crc(pkt, crc_start, crc_end);
             // Заменяем последние 4 байта перед 0x55 на новую CRC
-            pkt[pkt.size()-5] = (crc >> 24) & 0xFF;
-            pkt[pkt.size()-4] = (crc >> 16) & 0xFF;
-            pkt[pkt.size()-3] = (crc >> 8) & 0xFF;
-            pkt[pkt.size()-2] = (crc) & 0xFF;
+            pkt[pkt.size()-2] = (crc >> 24) & 0xFF;
+            pkt[pkt.size()-3] = (crc >> 16) & 0xFF;
+            pkt[pkt.size()-4] = (crc >> 8) & 0xFF;
+            pkt[pkt.size()-5] = crc & 0xFF;
+            // pkt[pkt.size()-5] = (crc >> 24) & 0xFF;
+            // pkt[pkt.size()-4] = (crc >> 16) & 0xFF;
+            // pkt[pkt.size()-3] = (crc >> 8) & 0xFF;
+            // pkt[pkt.size()-2] = (crc) & 0xFF;
         }
-        // Логируем пакет ПОСЛЕ пересчёта CRC
-        {
-            std::string log_str;
-            char buf[8];
-            for (auto b : pkt) {
-                snprintf(buf, sizeof(buf), "%02X ", b);
-                log_str += buf;
-            }
-            ESP_LOGI(TAG, "Packet after CRC:  %s", log_str.c_str());
+        // Логируем пакет перед отправкой
+        std::string log_str;
+        char buf[8];
+        for (auto b : pkt) {
+            snprintf(buf, sizeof(buf), "%02X ", b);
+            log_str += buf;
         }
+        ESP_LOGI(TAG, "Send to Mainboard: %s", log_str.c_str());
         send_packet_to_mainboard(pkt);
         counter = (counter + 1) & 0xFF;
-        delay(delay_ms); // пауза между пакетами
+        delay(delay_ms);
     }
     last_display_counter_ = (counter - 1) & 0xFF;
 }
