@@ -175,15 +175,15 @@ text_sensor:
 
 button:
   - platform: template
-    name: "Отправить три пакета строками"
+    name: "Американо"
     on_press:
       then:
         - lambda: |-
             id(saeco_series_6000_component)->send_packets_to_mainboard(
               std::vector<std::string>{
-                "AA AA AA 93 0B 01 01 60 7F F8 EC 55",
-                "AA AA AA 90 17 0A 05 03 00 02 00 00 64 00 00 00 44 1F 49 7D 55",
-                "AA AA AA 91 0D 01 03 75 AA 72 AC 55"
+                "AA AA AA 93 0E 01 01 8B BD 33 EA 55",
+                "AA AA AA 90 0F 0A 00 02 00 03 02 00 B4 00 00 00 67 48 E4 4B 55",
+                "AA AA AA 91 10 01 03 56 9A 8C B8 55"
               }, 50);
 
 #[20:45:34][I][saeco_series_6000:079]: Packet from Display: AA AA AA 93 0A 01 01 57 15 3A ED 55
