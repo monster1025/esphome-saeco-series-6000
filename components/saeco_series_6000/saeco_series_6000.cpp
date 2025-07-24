@@ -24,6 +24,7 @@ void SaecoSeries6000::loop() {
     uart_display_->write_byte(byte);  // Mirror byte immediately
     process_mainboard_byte(byte); // Process the "sniffed" byte
   }
+  
   // Контроль активности UART (выключение через 15 сек)
   static uint32_t last_check = 0;
   uint32_t now = millis();
@@ -232,41 +233,6 @@ const uint8_t SaecoSeries6000::BitReverse[256] = {
   0x0F,0x8F,0x4F,0xCF,0x2F,0xAF,0x6F,0xEF,0x1F,0x9F,0x5F,0xDF,0x3F,0xBF,0x7F,0xFF
 };
 
-uint32_t SaecoSeries6000::calc_crc(const std::vector<uint8_t>& data, size_t start, size_t end) {
-    uint32_t crc = 0xFFFFFFFF;
-    const uint32_t POLY = 0x04C11DB7;
-    if (start >= end) return 0;
-    // start
-    uint8_t val = data[start];
-    ((uint8_t*)(&crc))[3] ^= BitReverse[val];
-    for (uint8_t j = 0; j < 8; j++) {
-        if (crc & 0x80000000) {
-            crc = (crc << 1) ^ POLY;
-        } else {
-            crc <<= 1;
-        }
-    }
-    // остальные байты
-    for (size_t i = start + 1; i < end; i++) {
-        uint8_t v = data[i];
-        ((uint8_t*)(&crc))[3] ^= BitReverse[v];
-        for (uint8_t j = 0; j < 8; j++) {
-            if (crc & 0x80000000) {
-                crc = (crc << 1) ^ POLY;
-            } else {
-                crc <<= 1;
-            }
-        }
-    }
-    uint32_t t32 = 0;
-    ((uint8_t*)(&t32))[0] = BitReverse[((uint8_t*)(&crc))[3]];
-    ((uint8_t*)(&t32))[1] = BitReverse[((uint8_t*)(&crc))[2]];
-    ((uint8_t*)(&t32))[2] = BitReverse[((uint8_t*)(&crc))[1]];
-    ((uint8_t*)(&t32))[3] = BitReverse[((uint8_t*)(&crc))[0]];
-    crc = t32 ^ 0xFFFFFFFF;
-    return crc;
-}
-
 std::vector<uint8_t> SaecoSeries6000::parse_hex_string_to_bytes(const std::string& hex_string) {
     std::vector<uint8_t> pkt;
     size_t pos = 0;
@@ -338,6 +304,27 @@ void SaecoSeries6000::send_packets_to_mainboard(const std::vector<std::vector<ui
 }
 
 // Реализация SendPacketsAction полностью в header (saeco_series_6000.h)
+
+void SaecoSeries6000::coffee_build(uint8_t type, uint8_t bean, uint8_t cups, uint16_t vol, uint16_t milk) {
+    // Формируем пакет для отправки (AA AA AA 90 ... CRC CRC CRC CRC 55)
+    std::vector<uint8_t> pkt = {0xAA, 0xAA, 0xAA, 0x90};
+    std::vector<uint8_t> rec = build_coffee_recipe(type, bean, cups, vol, milk);
+    pkt.insert(pkt.end(), rec.begin(), rec.end());
+    // Добавляем 4 байта CRC (заполним позже) и 0x55
+    pkt.resize(pkt.size() + 4 + 1, 0);
+    pkt[pkt.size() - 1] = 0x55;
+    // Пересчёт CRC
+    size_t preamble = 3;
+    size_t crc_start = preamble;
+    size_t crc_end = pkt.size() - 5;
+    uint32_t crc = calc_crc(pkt, crc_start, crc_end);
+    pkt[pkt.size()-2] = (crc >> 24) & 0xFF;
+    pkt[pkt.size()-3] = (crc >> 16) & 0xFF;
+    pkt[pkt.size()-4] = (crc >> 8) & 0xFF;
+    pkt[pkt.size()-5] = crc & 0xFF;
+    // Отправляем пакет
+    send_packets_to_mainboard(std::vector<std::vector<uint8_t>>{pkt});
+}
 
 }  // namespace saeco_series_6000
 }  // namespace esphome 

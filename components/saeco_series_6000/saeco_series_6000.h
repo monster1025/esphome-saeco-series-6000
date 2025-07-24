@@ -26,6 +26,28 @@ class SaecoSeries6000 : public Component {
   void send_packets_to_mainboard(const std::vector<std::string>& hex_packets, uint32_t delay_ms = 10);
   void send_packets_to_mainboard(const std::string& hex_packet, uint32_t delay_ms = 10);
 
+  // Типы напитков
+  enum CoffeeType {
+      ESPRESSO = 0,
+      AMERICANO = 1,
+      CAPPUCCINO = 2,
+      LATTE = 3,
+      COFFEE_WITH_MILK = 4,
+      MILK_FOAM = 5,
+      HOT_WATER = 6
+  };
+  // Крепость/помол
+  enum CoffeeStrength {
+      MILD = 0,
+      NORMAL = 1,
+      STRONG = 2,
+      GROUND = 3
+  };
+  // Построение и отправка пакета приготовления кофе
+  void coffee_build(uint8_t type, uint8_t bean, uint8_t cups, uint16_t vol, uint16_t milk);
+  // Генерация рецепта (только формирование данных)
+  static std::vector<uint8_t> build_coffee_recipe(uint8_t type, uint8_t bean, uint8_t cups, uint16_t vol, uint16_t milk);
+
  protected:
   uart::UARTComponent *uart_display_;
   uart::UARTComponent *uart_mainboard_;
@@ -57,7 +79,8 @@ class SaecoSeries6000 : public Component {
   void parse_b5_packet(const uint8_t* buffer, uint16_t size);
   void pub_status(uint8_t status);
   static const uint8_t BitReverse[256];
-  uint32_t calc_crc(const std::vector<uint8_t>& data, size_t start, size_t end);
+  // CRC-32 для пакетов кофемашины
+  static uint32_t calc_crc(const std::vector<uint8_t>& data, size_t start, size_t end);
   std::vector<uint8_t> parse_hex_string_to_bytes(const std::string& hex_string);
 };
 

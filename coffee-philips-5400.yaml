@@ -173,6 +173,64 @@ text_sensor:
     icon: mdi:alert-circle-outline
     update_interval: never
 
+select:
+  - platform: template
+    name: "Тип напитка"
+    id: coffee_type
+    options:
+      - "Эспрессо"
+      - "Американо"
+      - "Капучино"
+      - "Латте"
+      - "Кофе с молоком"
+      - "Молочная пена"
+      - "Горячая вода"
+    initial_option: "Эспрессо"
+    optimistic: true
+
+  - platform: template
+    name: "Крепость"
+    id: coffee_strength
+    options:
+      - "Мягкий"
+      - "Обычный"
+      - "Крепкий"
+      - "Молотый"
+    initial_option: "Обычный"
+    optimistic: true
+
+  - platform: template
+    name: "Чашки"
+    id: coffee_cups
+    options:
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+    initial_option: "1"
+    optimistic: true
+
+number:
+  - platform: template
+    name: "Объем кофе (мл)"
+    id: coffee_volume
+    min_value: 20
+    max_value: 250
+    step: 10
+    initial_value: 100
+    unit_of_measurement: "ml"
+    optimistic: true
+
+  - platform: template
+    name: "Объем молока (мл)"
+    id: milk_volume
+    min_value: 0
+    max_value: 250
+    step: 10
+    initial_value: 0
+    unit_of_measurement: "ml"
+    optimistic: true
+
 button:
   - platform: template
     name: "Американо"
@@ -185,6 +243,29 @@ button:
                 "AA AA AA 90 0F 0A 00 02 00 03 02 00 B4 00 00 00 67 48 E4 4B 55",
                 "AA AA AA 91 10 01 03 56 9A 8C B8 55"
               }, 50);
+  - platform: template
+    name: "Выключение"
+    on_press:
+      then:
+        - lambda: |-
+            id(saeco_series_6000_component)->send_packets_to_mainboard(
+              std::vector<std::string>{
+                "AA AA AA FE 00 00 C8 87 1B 40 55"
+              }, 50);
+  - platform: template
+    name: "Приготовить напиток"
+    icon: mdi:coffee
+    on_press:
+      - lambda: |-
+          {
+            uint8_t type = id(coffee_type).index_of(id(coffee_type).state).value_or(0);      // 0..6
+            uint8_t bean = id(coffee_strength).index_of(id(coffee_strength).state).value_or(0); // 0..3
+            uint8_t cups = id(coffee_cups).index_of(id(coffee_cups).state).value_or(0) + 1; // 1..4
+            uint16_t vol = (uint16_t) id(coffee_volume).state;
+            uint16_t milk = (uint16_t) id(milk_volume).state;
+            id(saeco_series_6000_component)->coffee_build(type, bean, cups, vol, milk);
+          }
+
 
 #[20:45:34][I][saeco_series_6000:079]: Packet from Display: AA AA AA 93 0A 01 01 57 15 3A ED 55
 #[20:45:34][I][saeco_series_6000:079]: Packet from Display: AA AA AA 90 0B 0A 05 03 00 02 00 00 64 00 00 00 39 BF 5B 74 55
